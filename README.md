@@ -165,3 +165,16 @@ Parameters:
   - `imageRef` (string, optional): If a node has an imageRef fill, you must include this variable. Leave blank when downloading Vector SVG images.
   - `fileName` (string, required): The local name for saving the fetched file
 - `localPath` (string, required): The absolute path to the directory where images are stored in the project. Automatically creates directories if needed.
+
+## AZTP - Guild Generate Identity and Requirement
+
+### Environment
+
+- Setup environment with keyValue of MCP_NAME and AZTP_API_KEY
+
+### Where to get AZTP Api Key
+
+- Register at https://www.astha.ai/
+- Generate Key
+- For get the **FREE** identity make sure to add your desire domain. And follow the process to get verified.
+- Set you domain as default.

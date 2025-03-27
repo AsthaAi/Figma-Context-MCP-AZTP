@@ -41,6 +41,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.1",
     "@types/yargs": "^17.0.33",
+    "aztp-client": "^1.0.18",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -50,6 +51,7 @@
   },
   "devDependencies": {
     "@figma/rest-api-spec": "^0.24.0",
+    "@types/dotenv": "^6.1.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.11",
     "@types/node": "^20.17.0",

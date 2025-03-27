@@ -1,10 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { createServer } from "http";
 import { z } from "zod";
 import { FigmaService } from "./services/figma.js";
-import express, { Request, Response } from "express";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import { IncomingMessage, ServerResponse } from "http";
-import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { SimplifiedDesign } from "./services/simplify-node-response.js";
 
 export const Logger = {
@@ -12,32 +11,24 @@ export const Logger = {
   error: (...args: any[]) => {},
 };
 
-export class FigmaMcpServer {
-  private readonly server: McpServer;
+export class FigmaMcpServer extends McpServer {
   private readonly figmaService: FigmaService;
   private sseTransport: SSEServerTransport | null = null;
+  private httpServer?: ReturnType<typeof createServer>;
 
   constructor(figmaApiKey: string) {
+    super({
+      name: "Figma MCP Server",
+      version: "0.1.0",
+    });
     this.figmaService = new FigmaService(figmaApiKey);
-    this.server = new McpServer(
-      {
-        name: "Figma MCP Server",
-        version: "0.1.12",
-      },
-      {
-        capabilities: {
-          logging: {},
-          tools: {},
-        },
-      },
-    );
 
     this.registerTools();
   }
 
   private registerTools(): void {
     // Tool to get file information
-    this.server.tool(
+    this.tool(
       "get_figma_data",
       "When the nodeId cannot be obtained, obtain the layout information about the entire Figma file",
       {
@@ -98,7 +89,7 @@ export class FigmaMcpServer {
 
     // TODO: Clean up all image download related code, particularly getImages in Figma service
     // Tool to download images
-    this.server.tool(
+    this.tool(
       "download_figma_images",
       "Download SVG and PNG images used in a Figma file based on the IDs of image or icon nodes",
       {
@@ -171,17 +162,17 @@ export class FigmaMcpServer {
   }
 
   async connect(transport: Transport): Promise<void> {
-    // Logger.log("Connecting to transport...");
-    await this.server.connect(transport);
+    // Call parent class's connect method
+    await super.connect(transport);
 
     Logger.log = (...args: any[]) => {
-      this.server.server.sendLoggingMessage({
+      this.server.sendLoggingMessage({
         level: "info",
         data: args,
       });
     };
     Logger.error = (...args: any[]) => {
-      this.server.server.sendLoggingMessage({
+      this.server.sendLoggingMessage({
         level: "error",
         data: args,
       });
@@ -191,35 +182,33 @@ export class FigmaMcpServer {
   }
 
   async startHttpServer(port: number): Promise<void> {
-    const app = express();
-
-    app.get("/sse", async (req: Request, res: Response) => {
-      console.log("New SSE connection established");
-      this.sseTransport = new SSEServerTransport(
-        "/messages",
-        res as unknown as ServerResponse<IncomingMessage>,
-      );
-      await this.server.connect(this.sseTransport);
+    this.httpServer = createServer((req, res) => {
+      // Handle HTTP requests here
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok" }));
     });
 
-    app.post("/messages", async (req: Request, res: Response) => {
-      if (!this.sseTransport) {
-        res.sendStatus(400);
+    return new Promise((resolve, reject) => {
+      if (!this.httpServer) {
+        reject(new Error("HTTP server not initialized"));
         return;
       }
-      await this.sseTransport.handlePostMessage(
-        req as unknown as IncomingMessage,
-        res as unknown as ServerResponse<IncomingMessage>,
-      );
-    });
 
-    Logger.log = console.log;
-    Logger.error = console.error;
-
-    app.listen(port, () => {
-      Logger.log(`HTTP server listening on port ${port}`);
-      Logger.log(`SSE endpoint available at http://localhost:${port}/sse`);
-      Logger.log(`Message endpoint available at http://localhost:${port}/messages`);
+      this.httpServer.listen(port, () => {
+        console.log(`Server listening on port ${port}`);
+        resolve();
+      });
     });
+  }
+
+  async stop(): Promise<void> {
+    if (this.httpServer) {
+      return new Promise((resolve) => {
+        this.httpServer?.close(() => {
+          console.log("Server stopped");
+          resolve();
+        });
+      });
+    }
   }
 }

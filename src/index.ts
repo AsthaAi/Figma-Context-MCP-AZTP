@@ -1,29 +1,56 @@
 #!/usr/bin/env node
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { FigmaMcpServer } from "./server.js";
-import { getServerConfig } from "./config.js";
+import aztp from "aztp-client";
+import { config as dotenvConfig } from "dotenv";
+import { createRequire } from "module";
 import { resolve } from "path";
-import { config } from "dotenv";
-import { fileURLToPath } from "url";
 
 // Load .env from the current working directory
-config({ path: resolve(process.cwd(), ".env") });
+dotenvConfig({ path: resolve(process.cwd(), ".env") });
 
-export async function startServer(): Promise<void> {
-  // Check if we're running in stdio mode (e.g., via CLI)
-  const isStdioMode = process.env.NODE_ENV === "cli" || process.argv.includes("--stdio");
+// Use require for AZTP client
+const require = createRequire(import.meta.url);
 
-  const config = getServerConfig(isStdioMode);
+// Check for required environment variables
+if (!process.env.AZTP_API_KEY) {
+  throw new Error("AZTP_API_KEY environment variable is not set");
+}
 
-  const server = new FigmaMcpServer(config.figmaApiKey);
+if (!process.env.MCP_NAME) {
+  throw new Error("MCP_NAME environment variable is not set");
+}
 
-  if (isStdioMode) {
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-  } else {
-    console.log(`Initializing Figma MCP Server in HTTP mode on port ${config.port}...`);
-    await server.startHttpServer(config.port);
+const apiKey = process.env.AZTP_API_KEY;
+const mcpName = process.env.MCP_NAME as string;
+
+// Initialize AZTP client
+const client = aztp.default.initialize({ apiKey, name: mcpName });
+
+async function startServer() {
+  const serverMode = process.env.SERVER_MODE || "stdio";
+
+  try {
+    switch (serverMode) {
+      case "stdio":
+        const transport = new StdioServerTransport();
+        await client.secureConnect(transport, mcpName, {
+          trustDomain: "gptapps.ai",
+          metadata: {
+            hostname: process.env.HOSTNAME || "unknown",
+            environment: process.env.NODE_ENV || "development",
+          },
+        });
+        break;
+      case "http":
+        // TODO: Implement HTTP server
+        throw new Error("HTTP server mode not yet implemented");
+      default:
+        throw new Error(`Unsupported server mode: ${serverMode}`);
+    }
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
   }
 }
 

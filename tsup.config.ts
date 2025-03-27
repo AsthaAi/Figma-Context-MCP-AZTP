@@ -13,4 +13,6 @@ export default defineConfig({
     js: ".js",
   }),
   onSuccess: isDev ? "node dist/index.js" : undefined,
+  external: ["aztp-client"],
+  noExternal: ["@modelcontextprotocol/sdk"],
 });
